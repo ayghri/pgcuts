@@ -1,9 +1,9 @@
 [project]
-name = "HyCut"
+name = "PGCuts"
 version = "0.1.0"
-description = "HyCut — HyperGeometric Graph Cut Bounds"
+description = "Probabilistic Graph Cuts"
 authors = [
-    {name = "Authors A.",email = "someone@domain.com"}
+    {name = "Ayoub G.",email = "research@ayghri.me"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -18,11 +18,13 @@ dependencies = [
     "pyamg (>=5.3.0,<6.0.0)",
     "numba (>=0.62.1,<0.63.0)",
     "tensorboard (>=2.20.0,<3.0.0)",
-    "tqdm (>=4.67.1,<5.0.0)"
+    "tqdm (>=4.67.1,<5.0.0)",
+    "scipy (>=1.15.0,<2.0.0)",
+    "clip @ git+https://github.com/openai/CLIP.git"
 ]
 
 [tool.poetry]
-packages = [{include = "hycut", from = "."}]
+packages = [{include = "pgcuts", from = "."}]
 
 
 [tool.poetry.group.dev.dependencies]
