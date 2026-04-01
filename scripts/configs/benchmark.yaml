@@ -1,0 +1,27 @@
+defaults:
+  - _self_
+
+repr_dir: /buckets/representations
+device: cuda:0
+
+# Sweep these
+dataset: cifar10
+model: dinov2
+objective: hyp_ncut   # prcut, hyp_rcut, hyp_ncut
+
+# Training
+batch_size: 8192
+steps: 1500
+lr: 1e-3
+wd: 0.1
+ema: 0.9
+m: 512
+tau_start: 10.0
+tau_end: 1.0
+knn: 50
+num_bins: 16
+seed: 42
+eval_every: 500
+
+# Output
+output_dir: ${hydra:runtime.cwd}/results

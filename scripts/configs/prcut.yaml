@@ -1,0 +1,29 @@
+defaults:
+  - _self_
+
+data:
+  dataset: cifar10
+  model: clipvitL14
+  repr_dir: /buckets/representations/
+
+graph:
+  n_neighbors: 100
+
+training:
+  epochs: 10
+  lr: 1e-4
+  weight_decay: 1e-4
+  batch_pair_size: 8192
+  ema: 0.95
+  loss_scale_prcut: 1.0
+  loss_scale_balance: 1.0
+
+model:
+  arch: linear  # linear, mlp1, mlp2
+
+device: cuda
+
+wandb:
+  project: pgcuts-cifar10-tune
+  entity: null
+  mode: online  # online, offline, disabled

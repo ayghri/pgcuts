@@ -1,0 +1,31 @@
+defaults:
+  - _self_
+
+data:
+  dataset: cifar10
+  model: clipvitL14
+  repr_dir: /buckets/representations/
+
+graph:
+  n_neighbors: 100
+
+training:
+  epochs: 10
+  lr: 1e-4
+  weight_decay: 1e-4
+  batch_pair_size: 8192
+  ema: 0.95
+  loss_scale_ncut: 1.0
+  loss_scale_balance: 1.0
+
+ncut:
+  m: 512
+  num_bins: 16
+  binning: equal  # equal or log_kmeans
+
+device: cuda
+
+wandb:
+  project: pgcuts-ncut-tune
+  entity: null
+  mode: online

@@ -1,11 +1,7 @@
-"""
-GPU-accelerated 2F1(-m, b; c; z) for non-positive integer a.
+"""GPU-accelerated 2F1(-m, b; c; z) CUDA kernels.
 
-Uses CUDA kernels (JIT-compiled via torch.utils.cpp_extension.load_inline)
-with N-D stride-based tensor access — no .contiguous() calls, no materialized
-flat copies of b, c, z for any number of dimensions.
-
-Supports full PyTorch broadcasting: b, c, z can be any broadcastable shapes.
+Uses JIT-compiled CUDA via torch.utils.cpp_extension.
+Supports full PyTorch broadcasting on b, c, z.
 """
 
 import torch
@@ -552,15 +548,20 @@ _module = None
 
 
 def _get_module():
-    global _module
+    """Load JIT-compiled CUDA module."""
+    global _module  # pylint: disable=global-statement
     if _module is None:
         _module = load_inline(
             name="hyp2f1_jit",
             cpp_sources=CPP_SOURCE,
             cuda_sources=CUDA_SOURCE,
-            functions=["hyp2f1_forward", "fast_hyp2f1_forward",
-                        "mp_hyp2f1_forward", "par_hyp2f1_forward",
-                        "par_hyp2f1_precomp_forward"],
+            functions=[
+                "hyp2f1_forward",
+                "fast_hyp2f1_forward",
+                "mp_hyp2f1_forward",
+                "par_hyp2f1_forward",
+                "par_hyp2f1_precomp_forward",
+            ],
             verbose=False,
             extra_cuda_cflags=["-O3"],
             extra_cflags=["-O3"],
@@ -569,11 +570,7 @@ def _get_module():
 
 
 def _prepare_args(a, b, c, z):
-    """Convert inputs, compute broadcast shape and N-D strides.
-
-    Returns stride metadata as CPU int64 tensors (passed by value to kernel
-    via StridesInfo struct — no GPU allocation, no .contiguous() calls).
-    """
+    """Convert inputs and compute broadcast strides."""
     a_val = int(a)
     m = -a_val
     assert m >= 0, "a must be non-positive integer"
@@ -586,135 +583,166 @@ def _prepare_args(a, b, c, z):
     def _t(x, dtype):
         if isinstance(x, torch.Tensor):
             return x.to(dtype=dtype, device=device)
-        return torch.tensor(x, dtype=dtype, device=device)
+        return torch.tensor(
+            x, dtype=dtype, device=device
+        )
 
     z = _t(z, torch.float64)
     b = _t(b, torch.float64)
     c = _t(c, torch.float64)
 
-    out_shape = torch.broadcast_shapes(b.shape, c.shape, z.shape)
-    N = 1
+    out_shape = torch.broadcast_shapes(
+        b.shape, c.shape, z.shape
+    )
+    num_elements = 1
     for s in out_shape:
-        N *= s
+        num_elements *= s
 
     b = b.expand(out_shape)
     c = c.expand(out_shape)
     z = z.expand(out_shape)
 
     ndim = len(out_shape)
-    # CPU tensors — tiny, no GPU alloc; read in C++ host code to fill struct
-    shape_t = torch.tensor(list(out_shape), dtype=torch.int64)
-    b_strides_t = torch.tensor(list(b.stride()), dtype=torch.int64) if ndim > 0 else torch.empty(0, dtype=torch.int64)
-    c_strides_t = torch.tensor(list(c.stride()), dtype=torch.int64) if ndim > 0 else torch.empty(0, dtype=torch.int64)
-    z_strides_t = torch.tensor(list(z.stride()), dtype=torch.int64) if ndim > 0 else torch.empty(0, dtype=torch.int64)
+    shape_t = torch.tensor(
+        list(out_shape), dtype=torch.int64
+    )
+    b_strides_t = (
+        torch.tensor(
+            list(b.stride()), dtype=torch.int64
+        )
+        if ndim > 0
+        else torch.empty(0, dtype=torch.int64)
+    )
+    c_strides_t = (
+        torch.tensor(
+            list(c.stride()), dtype=torch.int64
+        )
+        if ndim > 0
+        else torch.empty(0, dtype=torch.int64)
+    )
+    z_strides_t = (
+        torch.tensor(
+            list(z.stride()), dtype=torch.int64
+        )
+        if ndim > 0
+        else torch.empty(0, dtype=torch.int64)
+    )
 
-    return (a_val, m, N, out_shape, device, b, c, z,
-            ndim, shape_t, b_strides_t, c_strides_t, z_strides_t)
+    return (
+        a_val,
+        m,
+        num_elements,
+        out_shape,
+        device,
+        b,
+        c,
+        z,
+        ndim,
+        shape_t,
+        b_strides_t,
+        c_strides_t,
+        z_strides_t,
+    )
 
 
 def _stride_args(prepared):
-    """Extract the stride arguments tuple from _prepare_args result."""
-    return prepared[8:]  # ndim, shape_t, b_strides_t, c_strides_t, z_strides_t
+    """Extract stride arguments from prepared tuple."""
+    return prepared[8:]
 
 
 def hyp2f1(a, b, c, z):
-    """Compute 2F1(a, b; c; z) for non-positive integer *a* on GPU.
+    """Compute 2F1(a, b; c; z) on GPU.
 
-    Uses Pfaff transformation for small z and Kummer connection for z near 1,
-    with automatic crossover selection.
-
-    Parameters
-    ----------
-    a : int   Non-positive integer.
-    b : float | Tensor  Positive real(s).
-    c : float | Tensor  Positive real(s), c > b.
-    z : Tensor  Values in [0, 1].
-
-    Returns
-    -------
-    Tensor  Same shape as ``torch.broadcast_shapes(b, c, z)``.
+    Uses Pfaff transformation for small z and Kummer
+    connection for z near 1.
     """
     p = _prepare_args(a, b, c, z)
-    a_val, m, N, out_shape, device, b, c, z = p[:8]
+    a_val, _, num_el, out_shape = p[:4]
+    _, b, c, z = p[4:8]
     ndim, shape_t, b_st, c_st, z_st = p[8:]
     module = _get_module()
     result = module.hyp2f1_forward(
-        a_val, b, c, z, ndim, shape_t, b_st, c_st, z_st, N)
+        a_val, b, c, z,
+        ndim, shape_t, b_st, c_st, z_st, num_el,
+    )
     return result.reshape(out_shape)
 
 
 def fast_hyp2f1(a, b, c, z):
-    """Branchless Kummer-only GPU 2F1.  No warp divergence.
-
-    Same API as :func:`hyp2f1`.  Uses Kummer connection for all z.
-    Fastest single-thread variant; accurate for typical b values (b <= ~5).
-    """
+    """Branchless Kummer-only GPU 2F1."""
     p = _prepare_args(a, b, c, z)
-    a_val, m, N, out_shape, device, b, c, z = p[:8]
+    a_val, _, num_el, out_shape = p[:4]
+    _, b, c, z = p[4:8]
     ndim, shape_t, b_st, c_st, z_st = p[8:]
     module = _get_module()
     result = module.fast_hyp2f1_forward(
-        a_val, b, c, z, ndim, shape_t, b_st, c_st, z_st, N)
+        a_val, b, c, z,
+        ndim, shape_t, b_st, c_st, z_st, num_el,
+    )
     return result.reshape(out_shape)
 
 
 def mp_hyp2f1(a, b, c, z):
-    """Direct-series GPU 2F1 (mpmath-style, no transformations).
-
-    Uses the plain forward recurrence without Pfaff/Kummer transformations.
-    Accurate for small |a| but produces NaN/Inf for large |a| and z near 1.
-    """
+    """Direct-series GPU 2F1 (no transformations)."""
     p = _prepare_args(a, b, c, z)
-    a_val, m, N, out_shape, device, b, c, z = p[:8]
+    a_val, _, num_el, out_shape = p[:4]
+    _, b, c, z = p[4:8]
     ndim, shape_t, b_st, c_st, z_st = p[8:]
     module = _get_module()
     result = module.mp_hyp2f1_forward(
-        a_val, b, c, z, ndim, shape_t, b_st, c_st, z_st, N)
+        a_val, b, c, z,
+        ndim, shape_t, b_st, c_st, z_st, num_el,
+    )
     return result.reshape(out_shape)
 
 
-def par_hyp2f1(a, b, c, z, P=8):  # noqa: N803
-    """P-thread-per-element parallel Kummer kernel.
-
-    Splits the m-iteration recurrence across P threads using warp shuffles
-    and tree reduction.  P must be 1, 2, 4, 8, 16, or 32.
-    Default P=8 (best balance of parallelism and overhead for N~128K).
-    """
+def par_hyp2f1(a, b, c, z, num_lanes=8):
+    """P-thread-per-element parallel Kummer kernel."""
     p = _prepare_args(a, b, c, z)
-    a_val, m, N, out_shape, device, b, c, z = p[:8]
+    a_val, m, num_el, out_shape, device = p[:5]
+    b, c, z = p[5:8]
     ndim, shape_t, b_st, c_st, z_st = p[8:]
     if m == 0:
-        return torch.ones(out_shape, dtype=torch.float64, device=device)
+        return torch.ones(
+            out_shape,
+            dtype=torch.float64,
+            device=device,
+        )
     module = _get_module()
     result = module.par_hyp2f1_forward(
-        a_val, b, c, z, ndim, shape_t, b_st, c_st, z_st, N, P)
+        a_val, b, c, z,
+        ndim, shape_t, b_st, c_st, z_st,
+        num_el, num_lanes,
+    )
     return result.reshape(out_shape)
 
 
-def par_hyp2f1_precomp(a, b, c, z, P=8):  # noqa: N803
-    """par_hyp2f1 with precomputed prefactor (lgamma+exp done outside kernel).
-
-    Same algorithm as par_hyp2f1, but the Kummer prefactor
-    Gamma(c)*Gamma(c-b+m) / (Gamma(c+m)*Gamma(c-b)) is computed via
-    vectorised PyTorch lgamma+exp before the kernel launch, removing
-    the in-kernel lgamma bottleneck on lane 0.
-    """
+def par_hyp2f1_precomp(a, b, c, z, num_lanes=8):
+    """par_hyp2f1 with precomputed prefactor."""
     p = _prepare_args(a, b, c, z)
-    a_val, m, N, out_shape, device, b, c, z = p[:8]
+    a_val, m, num_el, out_shape, device = p[:5]
+    b, c, z = p[5:8]
     ndim, shape_t, b_st, c_st, z_st = p[8:]
     if m == 0:
-        return torch.ones(out_shape, dtype=torch.float64, device=device)
+        return torch.ones(
+            out_shape,
+            dtype=torch.float64,
+            device=device,
+        )
 
     m_f = float(m)
-    # Prefactor: PyTorch handles strides internally, result is a new contiguous tensor
     prefactor = torch.exp(
-        torch.lgamma(c) + torch.lgamma(c - b + m_f)
-        - torch.lgamma(c + m_f) - torch.lgamma(c - b)
+        torch.lgamma(c)
+        + torch.lgamma(c - b + m_f)
+        - torch.lgamma(c + m_f)
+        - torch.lgamma(c - b)
     )
     pref_flat = prefactor.view(-1)
 
     module = _get_module()
     result = module.par_hyp2f1_precomp_forward(
         a_val, b, c, z, pref_flat,
-        ndim, shape_t, b_st, c_st, z_st, N, P)
+        ndim, shape_t, b_st, c_st, z_st,
+        num_el, num_lanes,
+    )
     return result.reshape(out_shape)

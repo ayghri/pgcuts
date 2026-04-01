@@ -1,3 +1,4 @@
+.DS_Store
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -9,6 +10,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+old/
 develop-eggs/
 dist/
 downloads/

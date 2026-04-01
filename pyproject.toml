@@ -1,36 +1,44 @@
 [project]
-name = "PGCuts"
+name = "pgcuts"
 version = "0.1.0"
-description = "Probabilistic Graph Cuts"
+description = "Probabilistic Graph Cuts with Hypergeometric Bounds"
+license = "MIT"
 authors = [
-    {name = "Ayoub G.",email = "research@ayghri.me"}
+    {name = "Ayoub Ghriss", email = "research@ayghri.me"}
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.11,<3.14"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["graph-cuts", "clustering", "spectral-clustering", "hypergeometric"]
 dependencies = [
-    "torch (>=2.8.0,<3.0.0)",
-    "torchvision (>=0.23.0,<0.24.0)",
-    "hydra-core (>=1.3.2,<2.0.0)",
-    "wandb (>=0.22.1,<0.23.0)",
-    "matplotlib (>=3.10.6,<4.0.0)",
-    "scikit-learn (>=1.7.2,<2.0.0)",
-    "munkres (>=1.1.4,<2.0.0)",
-    "pyamg (>=5.3.0,<6.0.0)",
-    "numba (>=0.62.1,<0.63.0)",
-    "tensorboard (>=2.20.0,<3.0.0)",
-    "tqdm (>=4.67.1,<5.0.0)",
-    "scipy (>=1.15.0,<2.0.0)",
-    "clip @ git+https://github.com/openai/CLIP.git"
+    "torch>=2.8.0,<3.0.0",
+    "scikit-learn>=1.7.2,<2.0.0",
+    "munkres>=1.1.4,<2.0.0",
+    "scipy>=1.15.0,<2.0.0",
+    "tqdm>=4.67.1,<5.0.0"
+]
+
+[project.optional-dependencies]
+experiments = [
+    "matplotlib>=3.10.6,<4.0.0",
+    "hydra-core>=1.3.2,<2.0.0",
+    "wandb>=0.22.1,<0.23.0"
 ]
 
 [tool.poetry]
 packages = [{include = "pgcuts", from = "."}]
 
-
 [tool.poetry.group.dev.dependencies]
 pandas = "^2.3.3"
 ipykernel = "^6.30.1"
 pytest = "^8.4.2"
+pylint = "^4.0.5"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

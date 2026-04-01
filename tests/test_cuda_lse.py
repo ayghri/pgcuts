@@ -1,6 +1,6 @@
 import torch
 import pytest
-from hycut.cuda import hyper2f1_negint
+from attempts.cuda_lse import hyper2f1_negint
 
 
 def cpu_reference(z, a_int, b, c):
