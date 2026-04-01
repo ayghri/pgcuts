@@ -1,26 +1,28 @@
 PGCuts Documentation
 ====================
 
-PGCuts is a GPU-accelerated implementation of Probablistic Graph Cuts (PGCuts) for graph clustering with a scikit-learn-compatible API.
+PGCuts is a GPU-accelerated implementation of Probabilistic Graph Cuts (PGCuts) for graph clustering with a scikit-learn-compatible API.
+
+For reasonable feature matrices, simply use as follows:
+
+.. code-block:: python
+    
+   from pgcuts import HyCut
+
+   # Just like KMeans or SpectralClustering
+   labels = HyCut(n_clusters=10).fit_predict(X)
+
+PGCuts replace the spectral eigendecomposition with a differentiable probabilistic upper bound that scales to large
+datasets, as introduced in:
+
+- `Beyond Spectral Clustering: Probabilistic Cuts for Differentiable Graph Partitioning (AISTATS 2026) <https://openreview.net/forum?id=FN6QAT5Tmc>`_
+- `Deep clustering via probabilistic ratio-cut optimization (AISTATS 2025) <https://arxiv.org/abs/2502.03405>`_
 
 PGCuts include:
 
 - **PRCut** -- Probabilistic RatioCut :math:`(\frac{1}{\bar{p}_\ell})`
 - **H-RCut** -- Hypergeometric RatioCut :math:`({}_{2}F_{1}(-m, 1; 2; \alpha_\ell))`
 - **H-NCut** -- Hypergeometric NCut with Holder-binned envelopes (default)
-
-PGCuts replaces the spectral eigendecomposition with a differentiable probabilistic upper bound that scales to large
-datasets, as introduced in:
-
-- `Beyond Spectral Clustering: Probabilistic Cuts for Differentiable Graph Partitioning (AISTATS 2026) <https://openreview.net/forum?id=FN6QAT5Tmc>`_
-- `Deep clustering via probabilistic ratio-cut optimization (AISTATS 2025) Ratio Cut <https://arxiv.org/abs/2502.03405>`_
-
-.. code-block:: python
-
-   from pgcuts import HyCut
-
-   # Just like KMeans or SpectralClustering
-   labels = HyCut(n_clusters=10).fit_predict(X)
 
 **Key features:**
 
