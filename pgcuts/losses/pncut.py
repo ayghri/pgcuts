@@ -186,7 +186,6 @@ class NCutLoss(nn.Module):
         )
         self.register_buffer("bin_weights", counts / counts.sum())
 
-        # Node-to-bin mapping
         node_to_bin = np.zeros(n, dtype=np.int64)
         for j, b in enumerate(self.bins):
             node_to_bin[b["indices"]] = j
@@ -237,22 +236,15 @@ class NCutLoss(nn.Module):
         beta = self.beta_stars.to(device)
         w = self.bin_weights.to(device)
 
-        # c = q_i / beta*_j + 1
         c = q.unsqueeze(1) / beta.unsqueeze(0) + 1.0
-
         z = alpha_bars.clamp(1e-7, 1 - 1e-7)
 
-        # Broadcast to (num_v, d, K)
         c_3d = c.unsqueeze(2).expand(num_v, num_bins, num_clusters)
         z_3d = z.unsqueeze(0).expand(num_v, num_bins, num_clusters)
 
-        # 2F1(-m, 1; c; z) -- (num_v, d, K)
         f_val = _hyp2f1(-m, 1.0, c_3d, z_3d)
-
-        # h = (1/q) * f -- (num_v, d, K)
         h_val = f_val / q.view(num_v, 1, 1)
 
-        # Holder composition in log space
         log_h = torch.log(h_val.clamp(min=1e-30))
         w_3d = w.view(1, num_bins, 1)
         log_phi = (w_3d * log_h).sum(dim=1)
@@ -279,7 +271,6 @@ class NCutLoss(nn.Module):
         n = probs.shape[0]
         device = probs.device
 
-        # Per-bin means
         alpha_bars = self._bin_means(probs.detach())
         if alpha_bars_ema is not None and self.ema_decay > 0:
             alpha_bars = (
@@ -290,10 +281,7 @@ class NCutLoss(nn.Module):
 
         m = n
 
-        # Phi for each vertex -- (n, K)
         phi = self.compute_phi(q, alpha_bars, m)
-
-        # M_il * Phi_il
         m_weights = edge_source_weights(w_mat, probs)
         loss = (m_weights * phi).sum() / w_mat.sum().clamp(min=1e-9)
 
@@ -327,13 +315,9 @@ def compute_ncut_bin_phi(
     num_bins, num_clusters = alpha_bars.shape
 
     q = q_stars.clamp(min=1e-6)
-
-    # c[i,j] = q*_i / beta*_j + 1
     c = q.unsqueeze(1) / beta_stars.unsqueeze(0) + 1.0
-
     z = alpha_bars.clamp(1e-7, 1 - 1e-7)
 
-    # Evaluate 2F1 at (d*d, K) points
     c_2d = (
         c.unsqueeze(2)
         .expand(num_bins, num_bins, num_clusters)

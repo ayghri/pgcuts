@@ -57,18 +57,13 @@ def prcut_original_step(
     p_right = probs[right_idx]
     ov_p = ema * p_ema + (1 - ema) * probs.mean(0).detach()
 
-    # Analytical gradient per edge (vectorized):
-    # grad_left  = w * (1 - 2*p_right) / ov_p
-    # grad_right = w * (1 - 2*p_left)  / ov_p
-    # + right term: -cut_per_k / (ov_p^2 * n)
     w_col = w.unsqueeze(-1)
-    cut_per_k = (w_col * p_left * (1.0 - p_right)).sum(0)  # (K,)
+    cut_per_k = (w_col * p_left * (1.0 - p_right)).sum(0)
 
     with torch.no_grad():
         grad_l = w_col * (1 - 2 * p_right) / ov_p - cut_per_k / (ov_p**2 * n)
         grad_r = w_col * (1 - 2 * p_left) / ov_p - cut_per_k / (ov_p**2 * n)
 
-    # Surrogate loss: grad . probs
     surrogate = (grad_l * p_left).sum() + (grad_r * p_right).sum()
 
     with torch.no_grad():
@@ -105,13 +100,11 @@ def prcut_step(
     p_left = probs[left_idx]
     p_right = probs[right_idx]
 
-    cut_per_k = (w.unsqueeze(-1) * p_left * (1.0 - p_right)).mean(0)  # (K,)
+    cut_per_k = (w.unsqueeze(-1) * p_left * (1.0 - p_right)).mean(0)
     p_bar = ema * p_ema + (1 - ema) * probs.mean(0).detach()
     cut_loss = (cut_per_k / (p_bar + 1e-12)).sum() / w.sum()
 
-    balance = -torch.special.entr(  # pylint: disable=not-callable
-        probs.mean(0)
-    ).sum()  # pylint: disable=not-callable
+    balance = -torch.special.entr(probs.mean(0)).sum()
 
     with torch.no_grad():
         p_ema = (ema * p_ema + (1 - ema) * probs.mean(0).detach()).detach()
@@ -155,11 +148,10 @@ def hyp_rcut_step(
 
         log_p_right = F.log_softmax(logits[right_idx], dim=-1)
         cut_per_k = (w.unsqueeze(-1) * (-p_left * log_p_right)).mean(0)
-    else:  # xor
+    else:
         p_right = probs[right_idx]
-        cut_per_k = (w.unsqueeze(-1) * p_left * (1.0 - p_right)).mean(0)  # (K,)
+        cut_per_k = (w.unsqueeze(-1) * p_left * (1.0 - p_right)).mean(0)
 
-    # Live alpha -- gradient flows through the envelope
     alpha = ema * p_ema + (1 - ema) * probs.mean(0)
     z = alpha.clamp(1e-7, 1 - 1e-7)
     device = logits.device
@@ -171,9 +163,7 @@ def hyp_rcut_step(
     )
 
     cut_loss = (cut_per_k * h_val).sum() / w.sum()
-    balance = -torch.special.entr(  # pylint: disable=not-callable
-        probs.mean(0)
-    ).sum()  # pylint: disable=not-callable
+    balance = -torch.special.entr(probs.mean(0)).sum()
 
     with torch.no_grad():
         p_ema = (ema * p_ema + (1 - ema) * probs.mean(0).detach()).detach()
@@ -232,22 +222,16 @@ def hyp_ncut_step(
         log_p_right = F.log_softmax(logits[right_idx], dim=-1)
         cut_per_edge = w.unsqueeze(-1) * (-p_left * log_p_right)
     else:
-        assert distance == "xor", "we only support ce or xor distance"
-        # (E, K)
+        assert distance == "xor", "only ce or xor distance supported"
         p_right = probs[right_idx]
         cut_per_edge = w.unsqueeze(-1) * p_left * (1.0 - p_right)
 
-    # Live alpha -- gradient flows through envelope
-    # (d, K)
     alpha_live = ema * alpha_ema + (1 - ema) * probs.mean(0).unsqueeze(0)
-
-    # Phi per bin -- (d, K), without the 1/q factor
     phi_bins = compute_ncut_bin_phi(q_stars, alpha_live, beta_stars, bin_weights, m)
 
-    # Per-edge: look up bin, apply Phi and 1/degree
-    left_bins = node_to_bin[left_node_ids]  # (E,)
-    phi_edges = phi_bins[left_bins]  # (E, K)
-    deg_left = degrees[left_node_ids].clamp(min=1e-6).unsqueeze(-1)  # (E, 1)
+    left_bins = node_to_bin[left_node_ids]
+    phi_edges = phi_bins[left_bins]
+    deg_left = degrees[left_node_ids].clamp(min=1e-6).unsqueeze(-1)
 
     cut_loss = (cut_per_edge * phi_edges / deg_left).sum() / w.sum()
     balance = -torch.special.entr(probs.mean(0)).sum()

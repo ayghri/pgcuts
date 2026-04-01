@@ -61,11 +61,10 @@ class FlashCutRCut(torch.autograd.Function):
                     device=p_left.device,
                 )
 
-        # Per-cluster cross-entropy cut
         cut_vals = (
             w.unsqueeze(-1)
             * (-p_left * log_p_right)
-        ).mean(0)  # (K,)
+        ).mean(0)
 
         ctx.save_for_backward(p_left, log_p_right, w)
         ctx.h_val = h_val
@@ -73,7 +72,7 @@ class FlashCutRCut(torch.autograd.Function):
         ctx.cut_vals = cut_vals.detach()
         ctx.num_edges = num_edges
 
-        return cut_vals * h_val  # (K,)
+        return cut_vals * h_val
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -85,7 +84,6 @@ class FlashCutRCut(torch.autograd.Function):
         num_edges = ctx.num_edges
         go = grad_output
 
-        # Term A: gradient through cut
         scale_a = (go * h_val) / num_edges
         w_col = w.unsqueeze(-1)
 
@@ -97,7 +95,6 @@ class FlashCutRCut(torch.autograd.Function):
             w_col * (-p_left) * scale_a.unsqueeze(0)
         )
 
-        # Term B: gradient through envelope
         envelope_grad = (
             go * cut_vals * h_prime
         ) / num_edges

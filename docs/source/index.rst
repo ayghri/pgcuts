@@ -26,6 +26,11 @@ datasets.
 - Gradient mixing for collapse-free training
 - Works on pre-extracted embeddings (DINOv2, CLIP, etc.)
 
+**Papers:**
+
+- `Hypergeometric Graph Cuts (AISTATS 2026) <https://openreview.net/forum?id=FN6QAT5Tmc>`_
+- `PRCut (AISTATS 2025): Probabilistic Ratio Cut <https://arxiv.org/abs/2502.03405>`_
+
 .. toctree::
    :maxdepth: 2
    :caption: Getting Started

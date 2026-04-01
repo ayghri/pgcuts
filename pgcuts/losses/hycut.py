@@ -71,28 +71,22 @@ class HyCutLoss(nn.Module):
             dtype=p_left.dtype,
         )
 
-        # Cross-entropy weighted by edge weights
         hycut = (
             weights.unsqueeze(-1)
             * (-p_left * log_p_right)
         ).mean(0)
 
-        # Mean cluster proportions for the batch
         p_mean = p_left.detach().mean(0)
-
-        # EMA update of cluster proportions
         alpha_input = (
             p_mean * (1 - self.ema_decay)
             + self.ema_decay * alphas
         )
 
-        # Apply hypergeometric envelope
         hycut = (
             hycut * hyp2f1(-m, b, c, alpha_input)
         ).sum()
         hycut = hycut / weights.sum()
 
-        # Update alphas
         updated_alphas = (
             alphas * self.ema_decay
             + (1 - self.ema_decay) * p_mean

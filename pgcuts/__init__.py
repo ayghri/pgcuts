@@ -42,12 +42,9 @@ from .graph import (
 )
 
 __all__ = [
-    # main API
     "HyCut",
-    # hyp2f1
     "Hyp2F1",
     "hyp2f1",
-    # losses
     "PRCutGradLoss",
     "PRCutBatchLoss",
     "HyCutLoss",
@@ -56,10 +53,8 @@ __all__ = [
     "NCutLoss",
     "equal_size_bins",
     "log_kmeans_bins",
-    # functional
     "graph_prcut",
     "pairwise_prcut",
-    # metrics
     "evaluate_clustering",
     "nmi_score",
     "ari_score",
@@ -67,14 +62,11 @@ __all__ = [
     "compute_rcut_ncut",
     "soft_ncut",
     "soft_rcut",
-    # graph
     "knn_graph",
     "gaussian_rbf_kernel",
     "build_rbf_knn_graph",
-    # optim
     "GradientMonitor",
     "GradientMixer",
-    # utils
     "get_pairs_unique_map",
     "ShuffledRangeDataset",
 ]
