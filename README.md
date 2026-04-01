@@ -2,34 +2,31 @@
 
 Differentiable graph cut objectives for unsupervised clustering on pre-computed embeddings. PGCuts provides tight hypergeometric upper bounds on the expected Normalized Cut, enabling gradient-based optimization without spectral decomposition.
 
+**Paper:** [Beyond Spectral Clustering: Probabilistic Cuts for Differentiable Graph Partitioning](https://github.com/ayghri/pgcuts/blob/main/aistats2026_paper.pdf) (AISTATS 2026)
+
+**Docs:** [pgcuts.readthedocs.io](https://pgcuts.readthedocs.io)
+
 ## Quick Start
 
 ```python
 from pgcuts import HyCut
 
-# Like sklearn — just pass features and number of clusters
-model = HyCut(n_clusters=10)
-labels = model.fit_predict(X)
-
-print(model.ncut_)  # normalized cut value
-print(model.rcut_)  # ratio cut value
+# Like sklearn
+labels = HyCut(n_clusters=10).fit_predict(X)
 ```
 
-Works on any pre-computed embeddings (CLIP, DINOv2, etc.):
+Works on any pre-computed embeddings (DINOv2, CLIP, etc.):
 
 ```python
 import numpy as np
 from pgcuts import HyCut
 
 X = np.load("dinov2_embeddings.npy")  # (50000, 1536)
-labels = HyCut(n_clusters=100, objective="hyp_ncut").fit_predict(X)
-```
+model = HyCut(n_clusters=100, objective="hyp_ncut")
+labels = model.fit_predict(X)
 
-For full control over the optimization, see `scripts/benchmark.py` or use the
-step functions directly:
-
-```python
-from pgcuts.algorithms import prcut_step, hyp_rcut_step, hyp_ncut_step
+print(model.ncut_)  # normalized cut value
+print(model.rcut_)  # ratio cut value
 ```
 
 ## Installation
@@ -41,15 +38,15 @@ pip install pgcuts
 Or from source:
 
 ```bash
-git clone https://github.com/aghriss/pgcuts.git
+git clone https://github.com/ayghri/pgcuts.git
 cd pgcuts && pip install -e .
 ```
 
-Requires PyTorch >= 2.0 with CUDA and Triton.
+Requires Python >= 3.11, PyTorch >= 2.8 with CUDA, and Triton.
 
 ## Algorithms
 
-PGCuts implements three probabilistic graph cut objectives:
+Three probabilistic graph cut objectives:
 
 | Objective | Envelope | What it optimizes |
 |-----------|----------|-------------------|
@@ -57,105 +54,89 @@ PGCuts implements three probabilistic graph cut objectives:
 | **H-RCut** | `2F1(-m, 1; 2; alpha)` | Hypergeometric bound on expected Ratio Cut |
 | **H-NCut** | Holder-binned `2F1` per degree bin | Hypergeometric bound on expected Normalized Cut |
 
+For custom training loops, use the step functions directly:
+
 ```python
 from pgcuts.algorithms import prcut_step, hyp_rcut_step, hyp_ncut_step
 ```
 
-Each function takes a batch of edges and returns `(cut_loss, balance_loss, updated_ema)`.
+Each takes a batch of edges and returns `(cut_loss, balance_loss, updated_ema)`.
 
 ## Key Components
 
-### Graph Construction
+**Graph Construction**
 
 ```python
 from pgcuts.graph import build_rbf_knn_graph
-
-W = build_rbf_knn_graph(X, n_neighbors=50)  # sparse (N, N) similarity matrix
+W = build_rbf_knn_graph(X, n_neighbors=50)
 ```
 
-### Hypergeometric Function
-
-GPU-accelerated `2F1(-m, b; c; z)` via Triton associative scan:
+**Hypergeometric Function** (GPU-accelerated via Triton/CUDA)
 
 ```python
-from pgcuts.hyp2f1 import Hyp2F1
-
+from pgcuts import Hyp2F1
 H = Hyp2F1.apply(-512, 1.0, 2.0, z)  # differentiable w.r.t. z
 ```
 
-### Gradient Mixer
-
-Normalizes gradients from multiple losses to prevent one from dominating:
+**Gradient Mixer** (prevents cluster collapse)
 
 ```python
-from pgcuts.optim import GradientMixer
+from pgcuts import GradientMixer
 
 gm = GradientMixer(model.named_parameters(), loss_scale={"cut": 1.0, "balance": 1.0})
-
 with gm("cut"):
     cut_loss.backward(retain_graph=True)
 with gm("balance"):
     balance.backward()
 ```
 
-### Evaluation
+**Evaluation**
 
 ```python
-from pgcuts.metrics import evaluate_clustering, compute_rcut_ncut
+from pgcuts import evaluate_clustering, compute_rcut_ncut
 
-results = evaluate_clustering(y_true, y_pred, K)  # ACC, NMI
-rcut, ncut = compute_rcut_ncut(W, y_pred)          # graph cut values
+results = evaluate_clustering(y_true, y_pred, K)
+rcut, ncut = compute_rcut_ncut(W, y_pred)
 ```
 
 ## Reproducing Results
 
-Run the full benchmark (15 datasets x 3 embeddings x 3 objectives = 135 experiments):
-
 ```bash
-pip install embedata hydra-core hydra-joblib-launcher
+pip install "pgcuts[experiments]"
 
 python scripts/benchmark.py --multirun \
-    dataset=cifar10,cifar100,stl10,aircraft,eurosat,dtd,flowers,pets,food101,gtsrb,fashionmnist,mnist,imagenette,cub,resisc45 \
-    model=clipvitL14,dinov2,dinov3b \
+    dataset=cifar10,cifar100,stl10,eurosat,imagenette,fashionmnist,mnist,pets,flowers,food101,resisc45,dtd,gtsrb,cub,aircraft \
+    model=dinov2,dinov3b,clipvitL14 \
     objective=prcut,hyp_rcut,hyp_ncut
 ```
 
-Results are saved to `results/` as JSON files. Embeddings are loaded via [embedata](https://pypi.org/project/embedata/).
-
-## Graph Quality
-
-We introduce a metric to assess how well a KNN graph captures class structure:
-
-```python
-Q = (q - q_chance) / (1 - q_chance)
-```
-
-where `q` = probability of landing in the same class after one random walk step, and `q_chance` accounts for class imbalance. `Q = 0` means random; `Q = 1` means perfect class separation.
-
-Strong correlation between Q and downstream accuracy: when Q > 0.8, H-Cut achieves high accuracy; when Q < 0.4, no graph method works well.
+Results saved to `results/` as JSON. Embeddings loaded via [embedata](https://github.com/ayghri/embedata).
 
 ## Package Structure
 
 ```
 pgcuts/
+    cluster.py      # HyCut (sklearn-compatible API)
     algorithms/     # prcut_step, hyp_rcut_step, hyp_ncut_step
-    hyp2f1/         # GPU 2F1 kernel (Triton + CUDA backends)
-    losses/         # Loss modules (PRCut, H-RCut, H-NCut, FlashCut)
+    hyp2f1/         # GPU 2F1 kernels (Triton + CUDA)
+    losses/         # PRCut, H-RCut, H-NCut, FlashCut
     graph.py        # KNN graph construction
-    metrics.py      # ACC, NMI, ARI, RCut, NCut evaluation
+    metrics.py      # ACC, NMI, ARI, RCut, NCut
     optim.py        # GradientMixer
-    functional.py   # Quadrature-based PRCut
-    layers.py       # PerFeatLinear, DecoupledLinear
     utils/          # Edge sampling, data utilities
 ```
 
 ## Citation
 
 ```bibtex
-@inproceedings{pgcuts2026,
-    title={Probabilistic Graph Cuts},
-    author={Ayoub Ghriss},
-    booktitle={AISTATS},
+@inproceedings{ghriss2026pgcuts,
+    title={Beyond Spectral Clustering: Probabilistic Cuts for Differentiable Graph Partitioning},
+    author={Ghriss, Ayoub},
+    booktitle={The 29th International Conference on Artificial Intelligence and Statistics (AISTATS)},
     year={2026}
 }
 ```
+
+## License
+
+MIT

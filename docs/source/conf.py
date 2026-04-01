@@ -20,7 +20,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
-    "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "myst_parser",
 ]
@@ -38,6 +37,9 @@ html_theme_options = {
     "collapse_navigation": False,
     "sticky_navigation": True,
 }
+
+html_logo = "_static/pgcuts.png"
+html_favicon = "_static/pgcuts.png"
 
 # -- Napoleon settings -------------------------------------------------------
 

@@ -19,7 +19,7 @@ PRCut losses
    :undoc-members:
 
 H-RCut loss
-----------
+-----------
 
 .. autoclass:: pgcuts.losses.HyCutLoss
    :members:
